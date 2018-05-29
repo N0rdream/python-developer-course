@@ -37,7 +37,7 @@ def get_data_from_file(path):
         with open(path, 'r') as f:
             for line in f:
                 yield line
-    
+
 
 def get_parsed_data(lines, fails_perc):
     data = defaultdict(list)
@@ -56,7 +56,7 @@ def get_parsed_data(lines, fails_perc):
         msg = 'Invalid log data: too many unparsed lines.'
         logging.error(msg)
         sys.exit(msg)
-    logging.info(f'Parsing finished. Parsed lines: {total}, unparsed lines: {fails}')   
+    logging.info(f'Finished. Parsed lines: {total}, unparsed lines: {fails}')
     return data
 
 
@@ -100,7 +100,7 @@ def get_filenames_from_dir(dir_path):
         logging.info(f'{dir_path} has no files')
         sys.exit(0)
     return filenames
-    
+
 
 def get_report_date(date):
     return '.'.join([date[:4], date[4:6], date[6:]])
@@ -126,17 +126,20 @@ def get_config_path():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='config.ini',
                         help='Path to config file')
+    print(parser.parse_args().config)
     return parser.parse_args().config
 
 
 def get_merged_config(config_default, config_file_path):
+    if not os.path.exists(config_file_path):
+        return config_default
     config_file = configparser.ConfigParser()
     config_file.optionxform = str
     config_file.read(config_file_path)
     try:
         main_config = config_file['MAIN']
     except KeyError:
-        sys.exit('Invalid config file.')
+        return None
     for k in main_config:
         if k in config_default:
             config_default[k] = main_config[k]
@@ -159,14 +162,19 @@ def main(config_default):
     try:
         config_file_path = get_config_path()
         config = get_merged_config(config_default, config_file_path)
+        if config is None:
+            sys.exit('Invalid config file.')
         logging.basicConfig(
             level=logging.INFO,
             filename=config['ANALYZER_LOG'],
             format='[%(asctime)s] %(levelname).1s %(message)s',
             datefmt='%Y.%m.%d %H:%M:%S'
         )
+        rep_dir_path = config['REPORT_DIR']
         log_file_path, date = get_last_log(config['LOG_DIR'])
-        report_file_path = os.path.join(config['REPORT_DIR'], f'report-{date}.html')
+        if not os.path.exists(rep_dir_path):
+            os.mkdir(rep_dir_path)
+        report_file_path = os.path.join(rep_dir_path, f'report-{date}.html')
         if os.path.exists(report_file_path):
             if not os.path.exists(config['TS_FILE']):
                 create_ts_file(config['TS_FILE'], report_file_path)
@@ -179,46 +187,22 @@ def main(config_default):
         render_report('report_template.html', report_file_path, report)
         logging.info('Report created.')
         create_ts_file(config['TS_FILE'], report_file_path)
-        
-    except (Exception, KeyboardInterrupt) as e:
+
+    except (Exception, KeyboardInterrupt):
         msg = 'Got exception on main()'
         logging.exception(msg)
         sys.exit(msg)
 
 
 if __name__ == "__main__":
-    
+
     config_default = {
-    "REPORT_SIZE": 1000,
-    "REPORT_DIR": "../../../data/hw01/reports",
-    "LOG_DIR": "../../../data/hw01/logs",
-    "ANALYZER_LOG": None,
-    "TS_FILE": "../../../data/hw01/log.ts",
-    "FAILS_PERC": 10
+        "REPORT_SIZE": 1000,
+        "REPORT_DIR": "../../../test/reports",
+        "LOG_DIR": "../../../test/logs",
+        "ANALYZER_LOG": None,
+        "TS_FILE": "../../../test/log.ts",
+        "FAILS_PERC": 10
     }
 
     main(config_default)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -30,12 +30,12 @@ TS_FILE=test/log.ts
 ```
 Путь до файла конфигурации можно указать при запуске скрипта в командной строке через ключ --config:
 ```
-python3.6 log_analyzer.py --config ../../../data/hw01/config.ini
+python3 log_analyzer.py --config ../../../data/hw01/config.ini
 ```
-Незаданные параметры берутся из конфигурации по умолачнию из кода скрипта.
+Незаданные параметры берутся из конфигурации по умолчанию из кода скрипта.
 
 How to run tests
 ----------------
 ```
-python3.6 -m unittest test_log_analyzer.py 
+python3 -m unittest test_log_analyzer.py 
 ```
