@@ -7,8 +7,18 @@ import logging
 import string
 import json
 import statistics
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from datetime import datetime
+
+
+config = {
+    "REPORT_SIZE": 1000,
+    "REPORT_DIR": "../../../test/reports",
+    "LOG_DIR": "../../../test/logs",
+    "ANALYZER_LOG": None,
+    "TS_FILE": "../../../test/log.ts",
+    "FAILS_PERC": 10
+}
 
 
 def parse_log_data(data):
@@ -29,14 +39,10 @@ def parse_log_filename(data):
 
 
 def get_data_from_log(path):
-    if path.endswith('.gz'):
-        with gzip.open(path, 'rb') as f:
-            for line in f:
-                yield line.decode('utf-8')
-    else:
-        with open(path, 'r') as f:
-            for line in f:
-                yield line
+    data = gzip.open(path, 'rb') if path.endswith('.gz') else open(path, 'rb')
+    for line in data:
+        yield line.decode('utf-8')
+    data.close()
 
 
 def get_parsed_log_data(lines, fails_perc=100):
@@ -91,40 +97,26 @@ def render_report(template_path, report_path, data):
             rf.write(line)
 
 
-def get_log_filenames(path):
-    filenames = []
-    for filename in os.listdir(path):
-        if os.path.isfile(os.path.join(path, filename)):
-            filenames.append(filename)
-    return filenames
-
-
-def get_report_date(date):
-    try:
-        dt = datetime.strptime(date, '%Y%m%d')
-    except ValueError:
-        return None
-    return f"{dt.year}.{dt.strftime('%m')}.{dt.strftime('%d')}"
-
-
-def get_last_log(filenames):
+def get_last_log(path):
     date = ''
     last_log_filename = ''
-    for filename in filenames:
-        data = parse_log_filename(filename)
-        if data is None:
-            continue
-        if data['date'] > date:
-            date = data['date']
-            last_log_filename = filename
-    return last_log_filename, date
+    for filename in os.listdir(path):
+        if os.path.isfile(os.path.join(path, filename)):
+            data = parse_log_filename(filename)
+            if data is None:
+                continue
+            if data['date'] > date:
+                date = data['date']
+                last_log_filename = filename
+    LastLog = namedtuple('LastLog', ['filename', 'date'])
+    return LastLog(filename=last_log_filename, date=date)
 
 
-def get_external_config_path():
+def get_cmd_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='config.json',
                         help='Path to config file')
-    return parser.parse_args().config
+    return parser.parse_args()
 
 
 def get_external_config(path):
@@ -134,13 +126,6 @@ def get_external_config(path):
         except json.decoder.JSONDecodeError:
             return None
     return external_config
-
-
-def get_merged_config(def_cfg, ext_cfg):
-    for k in ext_cfg:
-        if k in def_cfg:
-            def_cfg[k] = ext_cfg[k]
-    return def_cfg
 
 
 def create_ts_file(ts_file_path, report_file_path):
@@ -154,77 +139,58 @@ def make_report(report_data, size):
     return report[:size]
 
 
-def main(default_config):
+def main(config):
+    cmd_args = get_cmd_args()
+    external_config_path = cmd_args.config
+    if os.path.exists(external_config_path):
+        external_config = get_external_config(external_config_path)
+        if external_config is None:
+            sys.exit('Invalid external config file.')
+        config.update(external_config)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        filename=config['ANALYZER_LOG'],
+        format='[%(asctime)s] %(levelname).1s %(message)s',
+        datefmt='%Y.%m.%d %H:%M:%S'
+    )
+
+    log_dir_path = config['LOG_DIR']
+    ts_file_path = config['TS_FILE']
+    report_dir_path = config['REPORT_DIR']
+
+    if not os.path.exists(report_dir_path):
+        os.mkdir(report_dir_path)
+
+    last_log = get_last_log(log_dir_path)
+    log_filename, date = last_log.filename, last_log.date
+    if not log_filename:
+        logging.info(f'Directory <{log_dir_path}> has no log files.')
+        sys.exit(0)
+
+    report_date = datetime.strptime(date, '%Y%m%d').strftime('%Y.%m.%d')
+    report_filename = f'report-{report_date}.html'
+    report_file_path = os.path.join(report_dir_path, report_filename)
+    if os.path.exists(report_file_path):
+        if not os.path.exists(ts_file_path):
+            create_ts_file(ts_file_path, report_file_path)
+        logging.info(f'Report with date <{date}> already exists.')
+        sys.exit(0)
+
+    log_data = get_data_from_log(os.path.join(log_dir_path, log_filename))
+    parsed_data = get_parsed_log_data(log_data, float(config['FAILS_PERC']))
+    report_data = process_data(parsed_data)
+    report = make_report(report_data, int(config['REPORT_SIZE']))
+    render_report('report_template.html', report_file_path, report)
+    logging.info('Report created.')
+    create_ts_file(ts_file_path, report_file_path)
+    logging.info('Ts-file created.')
+
+
+if __name__ == "__main__":
     try:
-        external_config_path = get_external_config_path()
-        if not os.path.exists(external_config_path):
-            config = default_config
-        else:
-            external_config = get_external_config(external_config_path)
-            if external_config is None:
-                sys.exit('Invalid external config file.')
-            config = get_merged_config(default_config, external_config)
-
-        logging.basicConfig(
-            level=logging.INFO,
-            filename=config['ANALYZER_LOG'],
-            format='[%(asctime)s] %(levelname).1s %(message)s',
-            datefmt='%Y.%m.%d %H:%M:%S'
-        )
-
-        log_dir_path = config['LOG_DIR']
-        ts_file_path = config['TS_FILE']
-        report_dir_path = config['REPORT_DIR']
-
-        if not os.path.exists(report_dir_path):
-            os.mkdir(report_dir_path)
-
-        log_filenames = get_log_filenames(log_dir_path)
-        if not log_filenames:
-            logging.info(f'Directory <{log_dir_path}> has no files.')
-            sys.exit(0)
-
-        log_filename, date = get_last_log(log_filenames)
-        if not log_filename:
-            logging.info(f'Directory <{log_dir_path}> has no log files.')
-            sys.exit(0)
-
-        report_date = get_report_date(date)
-        if report_date is None:
-            logging.info(f'Invalid date in log filename: {date}.')
-            sys.exit(0)
-
-        report_filename = f'report-{report_date}.html'
-        report_file_path = os.path.join(report_dir_path, report_filename)
-        if os.path.exists(report_file_path):
-            if not os.path.exists(ts_file_path):
-                create_ts_file(ts_file_path, report_file_path)
-            logging.info(f'Report with date <{date}> already exists.')
-            sys.exit(0)
-
-        log_data = get_data_from_log(os.path.join(log_dir_path, log_filename))
-        parsed_data = get_parsed_log_data(log_data, float(config['FAILS_PERC']))
-        report_data = process_data(parsed_data)
-        report = make_report(report_data, int(config['REPORT_SIZE']))
-        render_report('report_template.html', report_file_path, report)
-        logging.info('Report created.')
-        create_ts_file(ts_file_path, report_file_path)
-        logging.info('Ts-file created.')
-
+        main(config)
     except (Exception, KeyboardInterrupt):
         msg = 'Got exception on <main> function'
         logging.exception(msg)
         sys.exit(msg)
-
-
-if __name__ == "__main__":
-
-    default_config = {
-        "REPORT_SIZE": 1000,
-        "REPORT_DIR": "../../../test/reports",
-        "LOG_DIR": "../../../test/logs",
-        "ANALYZER_LOG": None,
-        "TS_FILE": "../../../test/log.ts",
-        "FAILS_PERC": 10
-    }
-    main(default_config)

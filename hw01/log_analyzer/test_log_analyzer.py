@@ -4,9 +4,7 @@ from log_analyzer import (
     parse_log_filename,
     get_parsed_log_data,
     process_data,
-    get_last_log,
-    get_merged_config,
-    get_report_date
+    get_last_log
 )
 from collections import defaultdict
 
@@ -103,31 +101,5 @@ class TestAnalyzer(unittest.TestCase):
         self.assertEqual(process_data(data), result)
 
     def test_get_last_log(self):
-        filenames = [
-            'apache-access-ui.log-20180303',
-            'nginx-access-ui.log-20170228',
-            'nginx-access-ui.log-20180228'
-        ]
-        result = ('nginx-access-ui.log-20180228', '20180228')
-        self.assertEqual(get_last_log(filenames), result)
-
-    def test_get_merged_config(self):
-        def_cfg = {
-            "REPORT_DIR": "reports",
-            "LOG_DIR": "logs",
-            "FAILS_PERC": 50
-        }
-        ext_cfg = {
-            "REPORT_DIR": "test/reports",
-            "FAILS_PERC": 42
-        }
-        result = {
-            "REPORT_DIR": "test/reports",
-            "LOG_DIR": "logs",
-            "FAILS_PERC": 42
-        }
-        self.assertEqual(get_merged_config(def_cfg, ext_cfg), result)
-
-    def test_get_report_date(self):
-        self.assertEqual(get_report_date('20180531'), '2018.05.31')
-        self.assertIsNone(get_report_date('20180631'))
+        result = ('nginx-access-ui.log-20180202.gz', '20180202')
+        self.assertEqual(get_last_log('../test_data'), result)
