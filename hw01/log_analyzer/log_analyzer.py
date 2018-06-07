@@ -11,7 +11,7 @@ from collections import defaultdict, namedtuple
 from datetime import datetime
 
 
-config = {
+default_config = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "../../../test/reports",
     "LOG_DIR": "../../../test/logs",
@@ -21,56 +21,57 @@ config = {
 }
 
 
-def parse_log_data(data):
+def parse_log_record(record):
     pattern = re.compile(
         r'(?:POST|GET|HEAD|PUT|OPTIONS)\s+(?P<url>.+)\s+HTTP\/\d\.\d"\s.+\s'
         r'(?P<request_time>\d+\.\d+)$'
     )
-    match = re.search(pattern, data)
+    match = re.search(pattern, record)
     if match:
         return match.groupdict()
 
 
-def parse_log_filename(data):
+def parse_log_filename(filename):
     pattern = re.compile(r'nginx-access-ui\.log-(?P<date>\d{8})(\.gz|$)')
-    match = re.search(pattern, data)
+    match = re.search(pattern, filename)
     if match:
         return match.groupdict()
 
 
-def get_data_from_log(path):
-    data = gzip.open(path, 'rb') if path.endswith('.gz') else open(path, 'rb')
-    for line in data:
-        yield line.decode('utf-8')
-    data.close()
+def get_records_from_log(path):
+    log = gzip.open(path, 'rb') if path.endswith('.gz') else open(path, 'rb')
+    for record in log:
+        yield record.decode('utf-8')
+    log.close()
 
 
-def get_parsed_log_data(lines, fails_perc=100):
-    data = defaultdict(list)
+def get_parsed_log_records(records, fails_perc=100):
+    parsed_records = defaultdict(list)
     fails = 0
     logging.info('Parsing started.')
-    for total, line in enumerate(lines, start=1):
-        parsed_line = parse_log_data(line)
-        if parsed_line is not None:
-            request_time = float(parsed_line['request_time'])
-            data[parsed_line['url']].append(request_time)
+    for total, record in enumerate(records, start=1):
+        parsed_record = parse_log_record(record)
+        if parsed_record is not None:
+            request_time = float(parsed_record['request_time'])
+            parsed_records[parsed_record['url']].append(request_time)
         else:
             fails += 1
         if total % 100000 == 0:
-            logging.info(f'{total} lines parsed.')
+            logging.info(f'{total} records parsed.')
     if fails / total * 100 >= fails_perc:
-        msg = 'Invalid log data: too many unparsed lines.'
+        msg = 'Invalid log: too many unparsed records.'
         logging.error(msg)
         sys.exit(msg)
-    logging.info(f'Finished. Parsed lines: {total}, unparsed lines: {fails}')
-    return data
+    logging.info(
+        f'Parsing finished. Parsed records: {total}, unparsed records: {fails}')
+    return parsed_records
 
 
-def process_data(data):
+def process_parsed_records(records):
     result = []
-    urls_total = sum(len(v) for _, v in data.items())
-    req_time_total = sum(n for _, v in data.items() for n in v)
-    for url, req_times in data.items():
+    urls_total = sum(len(v) for _, v in records.items())
+    req_time_total = sum(n for _, v in records.items() for n in v)
+    for url, req_times in records.items():
         req_times.sort()
         url_number = len(req_times)
         time_sum = sum(req_times)
@@ -102,11 +103,11 @@ def get_last_log(path):
     last_log_filename = ''
     for filename in os.listdir(path):
         if os.path.isfile(os.path.join(path, filename)):
-            data = parse_log_filename(filename)
-            if data is None:
+            parsed_filename = parse_log_filename(filename)
+            if parsed_filename is None:
                 continue
-            if data['date'] > date:
-                date = data['date']
+            if parsed_filename['date'] > date:
+                date = parsed_filename['date']
                 last_log_filename = filename
     LastLog = namedtuple('LastLog', ['filename', 'date'])
     return LastLog(filename=last_log_filename, date=date)
@@ -139,7 +140,8 @@ def make_report(report_data, size):
     return report[:size]
 
 
-def main(config):
+def main(default_config):
+    config = default_config.copy()
     cmd_args = get_cmd_args()
     external_config_path = cmd_args.config
     if os.path.exists(external_config_path):
@@ -155,41 +157,37 @@ def main(config):
         datefmt='%Y.%m.%d %H:%M:%S'
     )
 
-    log_dir_path = config['LOG_DIR']
-    ts_file_path = config['TS_FILE']
-    report_dir_path = config['REPORT_DIR']
+    if not os.path.exists(config['REPORT_DIR']):
+        os.mkdir(config['REPORT_DIR'])
 
-    if not os.path.exists(report_dir_path):
-        os.mkdir(report_dir_path)
-
-    last_log = get_last_log(log_dir_path)
+    last_log = get_last_log(config['LOG_DIR'])
     log_filename, date = last_log.filename, last_log.date
     if not log_filename:
-        logging.info(f'Directory <{log_dir_path}> has no log files.')
+        logging.info(f"Directory <{config['LOG_DIR']}> has no log files.")
         sys.exit(0)
 
     report_date = datetime.strptime(date, '%Y%m%d').strftime('%Y.%m.%d')
     report_filename = f'report-{report_date}.html'
-    report_file_path = os.path.join(report_dir_path, report_filename)
+    report_file_path = os.path.join(config['REPORT_DIR'], report_filename)
     if os.path.exists(report_file_path):
-        if not os.path.exists(ts_file_path):
-            create_ts_file(ts_file_path, report_file_path)
+        if not os.path.exists(config['TS_FILE']):
+            create_ts_file(config['TS_FILE'], report_file_path)
         logging.info(f'Report with date <{date}> already exists.')
         sys.exit(0)
 
-    log_data = get_data_from_log(os.path.join(log_dir_path, log_filename))
-    parsed_data = get_parsed_log_data(log_data, float(config['FAILS_PERC']))
-    report_data = process_data(parsed_data)
+    records = get_records_from_log(os.path.join(config['LOG_DIR'], log_filename))
+    parsed_records = get_parsed_log_records(records, float(config['FAILS_PERC']))
+    report_data = process_parsed_records(parsed_records)
     report = make_report(report_data, int(config['REPORT_SIZE']))
     render_report('report_template.html', report_file_path, report)
     logging.info('Report created.')
-    create_ts_file(ts_file_path, report_file_path)
+    create_ts_file(config['TS_FILE'], report_file_path)
     logging.info('Ts-file created.')
 
 
 if __name__ == "__main__":
     try:
-        main(config)
+        main(default_config)
     except (Exception, KeyboardInterrupt):
         msg = 'Got exception on <main> function'
         logging.exception(msg)

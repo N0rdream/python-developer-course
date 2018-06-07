@@ -1,9 +1,9 @@
 import unittest
 from log_analyzer import (
-    parse_log_data,
+    parse_log_record,
     parse_log_filename,
-    get_parsed_log_data,
-    process_data,
+    get_parsed_log_records,
+    process_parsed_records,
     get_last_log
 )
 from collections import defaultdict
@@ -11,8 +11,8 @@ from collections import defaultdict
 
 class TestAnalyzer(unittest.TestCase):
 
-    def test_parse_log_data(self):
-        data_1 = (
+    def test_parse_log_record(self):
+        record_1 = (
             '1.99.174.176 '
             '3b81f63526fa8  '
             '- '
@@ -31,15 +31,15 @@ class TestAnalyzer(unittest.TestCase):
             'url': '/api/1/photogenic_banners/list/?server_name=WIN7RB4',
             'request_time': '0.133'
         }
-        empty_data = ''
-        data_2 = '1 1 1 1 "GET /test HTTP/1.1" 1 1 1 1 1 1 1 222.2'
+        empty_record = ''
+        record_2 = '1 1 1 1 "GET /test HTTP/1.1" 1 1 1 1 1 1 1 222.2'
         result_2 = {
             'url': '/test',
             'request_time': '222.2'
         }
-        self.assertEqual(parse_log_data(data_1), result_1)
-        self.assertIsNone(parse_log_data(empty_data))
-        self.assertEqual(parse_log_data(data_2), result_2)
+        self.assertEqual(parse_log_record(record_1), result_1)
+        self.assertIsNone(parse_log_record(empty_record))
+        self.assertEqual(parse_log_record(record_2), result_2)
 
     def test_parse_log_filename(self):
         fname_gzip = 'nginx-access-ui.log-20180103.gz'
@@ -53,8 +53,8 @@ class TestAnalyzer(unittest.TestCase):
         self.assertIsNone(parse_log_filename(fname_empty))
         self.assertIsNone(parse_log_filename(fname_bad))
 
-    def test_get_parsed_log_data(self):
-        data = [
+    def test_get_parsed_log_records(self):
+        records = [
             '- - - - "GET /test/1 HTTP/1.1" - - - - - - - 1.0',
             '- - - - "GET /test/2 HTTP/1.1" - - - - - - - 2.0',
             '- - - - "GET /test/2 HTTP/1.1" - - - - - - - 2.0',
@@ -70,12 +70,12 @@ class TestAnalyzer(unittest.TestCase):
         result['/test/1'] = [1.0]
         result['/test/2'] = [2.0, 2.0]
         result['/test/3'] = [3.0, 3.0, 3.0]
-        self.assertEqual(get_parsed_log_data(data), result)
+        self.assertEqual(get_parsed_log_records(records), result)
         with self.assertRaises(SystemExit):
-            data = get_parsed_log_data(data, fails_perc=10)
+            records = get_parsed_log_records(records, fails_perc=10)
 
-    def test_process_data(self):
-        data = {
+    def test_process_parsed_records(self):
+        records = {
             '/1': [1, 1, 1, 1],
             '/2': [2, 2, 2, 2, 2, 2]
         }
@@ -98,7 +98,7 @@ class TestAnalyzer(unittest.TestCase):
             'time_max': 2,
             'time_med': 2.0
         }]
-        self.assertEqual(process_data(data), result)
+        self.assertEqual(process_parsed_records(records), result)
 
     def test_get_last_log(self):
         result = ('nginx-access-ui.log-20180202.gz', '20180202')
