@@ -70,8 +70,8 @@ class TestAnalyzer(unittest.TestCase):
         result['/test/1'] = [1.0]
         result['/test/2'] = [2.0, 2.0]
         result['/test/3'] = [3.0, 3.0, 3.0]
-        self.assertEqual(get_parsed_log_records(records), result)
-        with self.assertRaises(SystemExit):
+        self.assertEqual(get_parsed_log_records(records), (result, 10, 4))
+        with self.assertRaises(Exception):
             records = get_parsed_log_records(records, fails_perc=10)
 
     def test_process_parsed_records(self):

@@ -11,7 +11,7 @@ from collections import defaultdict, namedtuple
 from datetime import datetime
 
 
-default_config = {
+DEFAULT_CONFIG = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "../../../test/reports",
     "LOG_DIR": "../../../test/logs",
@@ -20,20 +20,24 @@ default_config = {
     "FAILS_PERC": 10
 }
 
+REGEXP_LOG_RECORD = re.compile(
+    r'(?:POST|GET|HEAD|PUT|OPTIONS)\s+(?P<url>.+)\s+HTTP\/\d\.\d"\s.+\s'
+    r'(?P<request_time>\d+\.\d+)$'
+)
+
+REGEXP_LOG_FILENAME = re.compile(
+    r'nginx-access-ui\.log-(?P<date>\d{8})(\.gz|$)'
+)
+
 
 def parse_log_record(record):
-    pattern = re.compile(
-        r'(?:POST|GET|HEAD|PUT|OPTIONS)\s+(?P<url>.+)\s+HTTP\/\d\.\d"\s.+\s'
-        r'(?P<request_time>\d+\.\d+)$'
-    )
-    match = re.search(pattern, record)
+    match = re.search(REGEXP_LOG_RECORD, record)
     if match:
         return match.groupdict()
 
 
 def parse_log_filename(filename):
-    pattern = re.compile(r'nginx-access-ui\.log-(?P<date>\d{8})(\.gz|$)')
-    match = re.search(pattern, filename)
+    match = re.match(REGEXP_LOG_FILENAME, filename)
     if match:
         return match.groupdict()
 
@@ -48,7 +52,6 @@ def get_records_from_log(path):
 def get_parsed_log_records(records, fails_perc=100):
     parsed_records = defaultdict(list)
     fails = 0
-    logging.info('Parsing started.')
     for total, record in enumerate(records, start=1):
         parsed_record = parse_log_record(record)
         if parsed_record is not None:
@@ -56,15 +59,10 @@ def get_parsed_log_records(records, fails_perc=100):
             parsed_records[parsed_record['url']].append(request_time)
         else:
             fails += 1
-        if total % 100000 == 0:
-            logging.info(f'{total} records parsed.')
     if fails / total * 100 >= fails_perc:
-        msg = 'Invalid log: too many unparsed records.'
-        logging.error(msg)
-        sys.exit(msg)
-    logging.info(
-        f'Parsing finished. Parsed records: {total}, unparsed records: {fails}')
-    return parsed_records
+        raise Exception('Invalid log: too many unparsed records.')
+    Records = namedtuple('Records', ['data', 'total', 'fails'])
+    return Records(data=parsed_records, total=total, fails=fails)
 
 
 def process_parsed_records(records):
@@ -94,8 +92,7 @@ def render_report(template_path, report_path, data):
     template = string.Template(source)
     report_data = template.safe_substitute(table_json=json.dumps(data))
     with open(report_path, 'w') as rf:
-        for line in report_data:
-            rf.write(line)
+        rf.write(report_data)
 
 
 def get_last_log(path):
@@ -120,19 +117,22 @@ def get_cmd_args():
     return parser.parse_args()
 
 
-def get_external_config(path):
-    with open(path, 'r') as json_data:
-        try:
-            external_config = json.load(json_data)
-        except json.decoder.JSONDecodeError:
-            return None
-    return external_config
+def get_merged_config(default_config, external_config_path):
+    config = default_config.copy()
+    if os.path.exists(external_config_path):
+        with open(external_config_path, 'r') as ext_cfg_data:
+            try:
+                external_config = json.load(ext_cfg_data)
+            except json.decoder.JSONDecodeError:
+                raise Exception('Invalid external config file.')
+        config.update(external_config)
+    return config
 
 
 def create_ts_file(ts_file_path, report_file_path):
-    ts = os.path.getmtime(report_file_path)
+    ts = str(os.path.getmtime(report_file_path))
     with open(ts_file_path, 'w') as f:
-        f.write(str(ts))
+        f.write(ts)
 
 
 def make_report(report_data, size):
@@ -141,14 +141,8 @@ def make_report(report_data, size):
 
 
 def main(default_config):
-    config = default_config.copy()
     cmd_args = get_cmd_args()
-    external_config_path = cmd_args.config
-    if os.path.exists(external_config_path):
-        external_config = get_external_config(external_config_path)
-        if external_config is None:
-            sys.exit('Invalid external config file.')
-        config.update(external_config)
+    config = get_merged_config(default_config, cmd_args.config)
 
     logging.basicConfig(
         level=logging.INFO,
@@ -163,7 +157,7 @@ def main(default_config):
     last_log = get_last_log(config['LOG_DIR'])
     log_filename, date = last_log.filename, last_log.date
     if not log_filename:
-        logging.info(f"Directory <{config['LOG_DIR']}> has no log files.")
+        logging.info("Directory <{config['LOG_DIR']}> has no log files.")
         sys.exit(0)
 
     report_date = datetime.strptime(date, '%Y%m%d').strftime('%Y.%m.%d')
@@ -176,8 +170,15 @@ def main(default_config):
         sys.exit(0)
 
     records = get_records_from_log(os.path.join(config['LOG_DIR'], log_filename))
+    logging.info('Parsing started.')
     parsed_records = get_parsed_log_records(records, float(config['FAILS_PERC']))
-    report_data = process_parsed_records(parsed_records)
+    fin_msg = (
+        'Parsing finished. '
+        f'Parsed records: {parsed_records.total}, '
+        f'unparsed records: {parsed_records.fails}.'
+    )
+    logging.info(fin_msg)
+    report_data = process_parsed_records(parsed_records.data)
     report = make_report(report_data, int(config['REPORT_SIZE']))
     render_report('report_template.html', report_file_path, report)
     logging.info('Report created.')
@@ -187,7 +188,7 @@ def main(default_config):
 
 if __name__ == "__main__":
     try:
-        main(default_config)
+        main(DEFAULT_CONFIG)
     except (Exception, KeyboardInterrupt):
         msg = 'Got exception on <main> function'
         logging.exception(msg)
