@@ -157,7 +157,7 @@ def main(default_config):
     last_log = get_last_log(config['LOG_DIR'])
     log_filename, date = last_log.filename, last_log.date
     if not log_filename:
-        logging.info("Directory <{config['LOG_DIR']}> has no log files.")
+        logging.info(f"Directory <{config['LOG_DIR']}> has no log files.")
         sys.exit(0)
 
     report_date = datetime.strptime(date, '%Y%m%d').strftime('%Y.%m.%d')
