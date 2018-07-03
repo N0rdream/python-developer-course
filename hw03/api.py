@@ -79,49 +79,48 @@ def check_auth(request):
     return False
 
 
-def handle_online_score(data, is_admin):
-    s = OnlineScoreRequest()
-    Result = namedtuple('Result', ['response', 'code', 'ctx_val'])
-    if not s.is_valid(data):
-        return Result(response=s.error, code=INVALID_REQUEST, ctx_val=[])
-    ctx_val = s.get_non_nullable_fields(data)
-    if is_admin:
-        return Result(response={'score': 42}, code=OK, ctx_val=ctx_val)
+def handle_online_score(request, ctx):
+    s = OnlineScoreRequest(request.arguments)
+    if not s.is_valid():
+        ctx['has'] = []
+        return s.errors_string, INVALID_REQUEST
+    ctx['has'] = s.get_online_score_ctx()
+    if request.is_admin:
+        return {'score': 42}, OK
     score = get_score(
         None, s.phone, s.email, 
         birthday=s.birthday, gender=s.gender, 
         first_name=s.first_name, last_name=s.last_name
     )
-    return Result(response={'score': score}, code=OK, ctx_val=ctx_val)
+    return {'score': score}, OK
 
 
-def handle_clients_interests(data):
-    i = ClientsInterestsRequest()
-    Result = namedtuple('Result', ['response', 'code', 'ctx_val'])
-    if not i.is_valid(data):
-        return Result(response=i.error, code=INVALID_REQUEST, ctx_val=0)
-    interests = {ci: get_interests(None, ci) for ci in i.client_ids}
-    return Result(response=interests, code=OK, ctx_val=len(i.client_ids))
+def handle_clients_interests(request, ctx):
+    i = ClientsInterestsRequest(request.arguments)
+    if not i.is_valid():
+        ctx['nclients'] = 0
+        return i.errors_string, INVALID_REQUEST
+    ctx['nclients'] = len(i.client_ids)
+    return {ci: get_interests(None, ci) for ci in i.client_ids}, OK
 
 
 def method_handler(request, ctx, store):
+    handlers = {
+        'online_score': handle_online_score,
+        'clients_interests': handle_clients_interests
+    }
     try:
         data = request['body']
     except KeyError:
         return ERRORS[BAD_REQUEST], BAD_REQUEST
-    m = MethodRequest()
-    if not m.is_valid(data):
-        return m.error, INVALID_REQUEST
+    m = MethodRequest(data)
+    if not m.is_valid():
+        return m.errors_string, INVALID_REQUEST
     if not check_auth(m):
         return ERRORS[FORBIDDEN], FORBIDDEN
-    if m.method == 'online_score':
-        result = handle_online_score(m.arguments, m.is_admin)
-        ctx['has'] = result.ctx_val
-        return result.response, result.code
-    if m.method == 'clients_interests':
-        result = handle_clients_interests(m.arguments)
-        ctx['nclients'] = result.ctx_val
-        return result.response, result.code
+    handler = handlers.get(m.method)
+    if handler is not None:
+        return handler(m, ctx)
     return ERRORS[BAD_REQUEST], BAD_REQUEST
 
 

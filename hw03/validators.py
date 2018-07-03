@@ -14,65 +14,35 @@ class ValidatorMeta(type):
 
 class Validator(metaclass=ValidatorMeta):
 
-    @property
-    def required_fields(self):
-        return [k for k, v in self._fields.items() if v.required]
-
-    @property
-    def non_nullable_fields(self):
-        return [k for k, v in self._fields.items() if not v.nullable]
+    def __init__(self, request):
+        self.errors = []
+        self.request = request
 
     def is_field_empty(self, field, value):
         return value in self._fields[field].empty_values
 
-    def get_non_nullable_fields(self, request_body):
-        return [k for k, v in request_body.items() if k in self._fields and not self.is_field_empty(k, v)]
+    def get_online_score_ctx(self):
+        return [k for k, v in self.request.items()
+                if k in self._fields and not self.is_field_empty(k, v)]
 
-    def check_required_fields(self, request_body):
-        for field in self.required_fields:
-            if field not in request_body:
-                raise AttributeError(f'Field <{field}> is required.')
+    @property
+    def errors_string(self):
+        return ' '.join(self.errors)
 
-    def check_non_nullable_fields(self, request_body):
-        for field in self.non_nullable_fields:
-            if field in request_body:
-                if self.is_field_empty(field, request_body[field]):
-                    raise AttributeError(f'Field <{field}> is non-nullable.')
-
-    def check_for_excess_fields(self, request_body):
-        for field in request_body:
-            if field not in self._fields:
-                raise AttributeError(
-                    f'Field <{field}> is not defined in <{self.__class__.__name__}>.')
-
-    def check_required_groups(self, request_body):
-        for sublist in self.required_groups:
-            flag = True
-            for field in sublist:
-                if field not in self._fields:
-                    raise AttributeError(
-                        f'Unknown field <{field}> in <required_fields>.')
-                if field not in request_body or self.is_field_empty(field, request_body[field]):
-                    flag = False
-            if flag:
-                return None
-        raise AttributeError('Missing required field from <required_fields>.')
-
-    def is_valid(self, request_body):
-        try:
-            if hasattr(self, 'required_groups'):
-                self.check_required_groups(request_body)
-            else:
-                self.check_required_fields(request_body)
-            self.check_non_nullable_fields(request_body)
-            self.check_for_excess_fields(request_body)
-        except (ValueError, AttributeError) as e:
-            self.error = str(e)
-            return False
-        for k, v in request_body.items():
+    def is_valid(self):
+        if hasattr(self, 'required_groups'):
+            if not any(all(f in self.request for f in g) for g in self.required_groups):
+                self.errors.append('Missing required field from <required_fields>.')
+        else:
+            for f, fv in self._fields.items():
+                if f not in self.request and fv.required:
+                    self.errors.append(f'Field <{f}> is required.')
+        for f, fv in self._fields.items():
+            if f in self.request and self.is_field_empty(f, self.request[f]) and not fv.nullable:
+                self.errors.append(f'Field <{f}> is non-nullable.')
+        for rf, rfv in self.request.items():
             try:
-                setattr(self, k, v)
-            except TypeError as e:
-                self.error = f'Error in <{k}> field. {e}'
-                return False
-        return True
+                setattr(self, rf, rfv)
+            except (TypeError, ValueError) as e:
+                self.errors.append(f'Error in <{rf}> field. {e}')
+        return not self.errors
