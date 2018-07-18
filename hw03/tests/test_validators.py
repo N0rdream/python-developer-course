@@ -1,6 +1,6 @@
 import pytest
-import fields
-from validators import Validator
+from api import fields
+from api.validators import Validator
 
 
 class CheckField(Validator):
@@ -15,14 +15,23 @@ class CheckField(Validator):
 
     required_groups = [
         ('char', 'email'), 
-        ('gender', 'bday'),
+        ('gender', 'bday')
     ]
+
+    def is_valid(self):
+        valid = super().is_valid()
+        if not valid:
+            return False
+        if not any(all(fld in self.request for fld in g) for g in self.required_groups):
+            self.errors.append('Missing required field from <required_fields>.')
+            return False
+        return True
 
 
 data_invalid = [
     (
         {'email': '@'}, 
-        ['Missing required field from <required_fields>.']
+        ['Field <char> is required.']
     ),
     (
         {'char': '1', 'email': ''}, 
@@ -51,13 +60,9 @@ data_invalid = [
     ),
 ]
 
-@pytest.fixture(params=data_invalid)
-def data_invalid_param(request):
-    return request.param
-
-def test_is_invalid(data_invalid_param):
-    data, errors = data_invalid_param
-    c = CheckField(data)
+@pytest.mark.parametrize('input, errors', data_invalid)
+def test_invalid_input(input, errors):
+    c = CheckField(input)
     assert not c.is_valid()
     assert sorted(c.errors) == sorted(errors)
 
@@ -67,27 +72,7 @@ data_valid = [
     {'char': '1', 'bday': '12.12.2000', 'gender': 0},
 ]
 
-@pytest.fixture(params=data_valid)
-def data_valid_param(request):
-    return request.param
-
-def test_is_valid(data_valid_param):
-    c = CheckField(data_valid_param)
+@pytest.mark.parametrize('input', data_valid)
+def test_valid_input(input):
+    c = CheckField(input)
     assert c.is_valid()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

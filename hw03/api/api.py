@@ -5,10 +5,11 @@ import hashlib
 import uuid
 from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from validators import Validator
-import fields
-from scoring import get_score, get_interests
+from .validators import Validator
+from . import fields
+from .scoring import get_score, get_interests
 from collections import namedtuple
+from .store import Store
 
 
 SALT = "Otus"
@@ -43,7 +44,7 @@ class ClientsInterestsRequest(Validator):
 
 
 class OnlineScoreRequest(Validator):
-    first_name = fields.CharField(required=True, nullable=True)
+    first_name = fields.CharField(required=False, nullable=True)
     last_name = fields.CharField(required=False, nullable=True)
     email = fields.EmailField(required=False, nullable=True)
     phone = fields.PhoneField(required=False, nullable=True)
@@ -53,8 +54,21 @@ class OnlineScoreRequest(Validator):
     required_groups = [
         ('phone', 'email'), 
         ('first_name', 'last_name'),
-        ('gender', 'birthday'),
+        ('gender', 'birthday')
     ]
+
+    def get_online_score_ctx(self):
+        return [k for k, v in self.request.items()
+                if k in self._fields and not self.is_field_empty(k, v)]
+
+    def is_valid(self):
+        valid = super().is_valid()
+        if not valid:
+            return False
+        if not any(all(fld in self.request for fld in g) for g in self.required_groups):
+            self.errors.append('Missing required field from <required_fields>.')
+            return False
+        return True
 
 
 class MethodRequest(Validator):
@@ -69,17 +83,25 @@ class MethodRequest(Validator):
         return self.login == ADMIN_LOGIN
 
 
+def get_admin_token():
+    return hashlib.sha512((datetime.datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT).encode()).hexdigest()
+
+
+def get_user_token(account, login):
+    return hashlib.sha512((account + login + SALT).encode()).hexdigest()
+
+
 def check_auth(request):
     if request.login == ADMIN_LOGIN:
-        digest = hashlib.sha512((datetime.datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT).encode()).hexdigest()
+        digest = get_admin_token()
     else:
-        digest = hashlib.sha512((request.account + request.login + SALT).encode()).hexdigest()
+        digest = get_user_token(request.account, request.login)
     if digest == request.token:
         return True
     return False
 
 
-def handle_online_score(request, ctx):
+def handle_online_score(request, ctx, store):
     s = OnlineScoreRequest(request.arguments)
     if not s.is_valid():
         ctx['has'] = []
@@ -88,20 +110,20 @@ def handle_online_score(request, ctx):
     if request.is_admin:
         return {'score': 42}, OK
     score = get_score(
-        None, s.phone, s.email, 
+        store, s.phone, s.email, 
         birthday=s.birthday, gender=s.gender, 
         first_name=s.first_name, last_name=s.last_name
     )
     return {'score': score}, OK
 
 
-def handle_clients_interests(request, ctx):
+def handle_clients_interests(request, ctx, store):
     i = ClientsInterestsRequest(request.arguments)
     if not i.is_valid():
         ctx['nclients'] = 0
         return i.errors_string, INVALID_REQUEST
     ctx['nclients'] = len(i.client_ids)
-    return {ci: get_interests(None, ci) for ci in i.client_ids}, OK
+    return {ci: get_interests(store, ci) for ci in i.client_ids}, OK
 
 
 def method_handler(request, ctx, store):
@@ -112,7 +134,7 @@ def method_handler(request, ctx, store):
     try:
         data = request['body']
     except KeyError:
-        return ERRORS[BAD_REQUEST], BAD_REQUEST
+        return ERRORS[INVALID_REQUEST], INVALID_REQUEST
     m = MethodRequest(data)
     if not m.is_valid():
         return m.errors_string, INVALID_REQUEST
@@ -120,15 +142,15 @@ def method_handler(request, ctx, store):
         return ERRORS[FORBIDDEN], FORBIDDEN
     handler = handlers.get(m.method)
     if handler is not None:
-        return handler(m, ctx)
-    return ERRORS[BAD_REQUEST], BAD_REQUEST
+        return handler(m, ctx, store)
+    return ERRORS[INVALID_REQUEST], INVALID_REQUEST
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
     router = {
         "method": method_handler
     }
-    store = None
+    store = Store('localhost', 6379, 1, 0.5)
 
     def get_request_id(self, headers):
         return headers.get('HTTP_X_REQUEST_ID', uuid.uuid4().hex)
@@ -167,7 +189,8 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(r).encode())
         return
 
-if __name__ == "__main__":
+
+def main():
     op = OptionParser()
     op.add_option("-p", "--port", action="store", type=int, default=8080)
     op.add_option("-l", "--log", action="store", default=None)

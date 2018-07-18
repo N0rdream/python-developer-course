@@ -1,5 +1,5 @@
 import pytest
-import fields
+from api import fields
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def test_class():
     return CheckField()
 
 
-data_invalid_types = [
+data_invalid = [
     ('char', 1),
     ('email', None),
     ('phone', []),    
@@ -25,20 +25,6 @@ data_invalid_types = [
     ('gender', '0'),
     ('ids', 0),
     ('args', []),
-]
-
-@pytest.fixture(params=data_invalid_types)
-def data_invalid_types_param(request):
-    return request.param
-
-
-def test_invalid_fields_types(test_class, data_invalid_types_param):
-    field, value = data_invalid_types_param
-    with pytest.raises(TypeError):
-        setattr(test_class, field, value)
-
-
-data_invalid_values = [
     ('email', 'test_gmail.com'),
     ('phone', -1),    
     ('phone', 8000123467),
@@ -53,14 +39,9 @@ data_invalid_values = [
     ('ids', ['1', 2])
 ]
 
-@pytest.fixture(params=data_invalid_values)
-def data_invalid_values_param(request):
-    return request.param
-
-
-def test_invalid_fields_types(test_class, data_invalid_values_param):
-    field, value = data_invalid_values_param
-    with pytest.raises(ValueError):
+@pytest.mark.parametrize('field, value', data_invalid)
+def test_invalid_input(field, value, test_class):
+    with pytest.raises(fields.ValidationError):
         setattr(test_class, field, value)
 
 
@@ -81,10 +62,6 @@ data_valid = [
     ('args', {'q': 1}),    
 ]
 
-@pytest.fixture(params=data_valid)
-def data_valid_param(request):
-    return request.param
-
-def test_valid_fields(test_class, data_valid_param):
-    field, value = data_valid_param
+@pytest.mark.parametrize('field, value', data_valid)
+def test_valid_input(field, value, test_class):
     assert setattr(test_class, field, value) is None

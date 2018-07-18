@@ -2,6 +2,10 @@ import re
 from datetime import datetime
 
 
+class ValidationError(Exception):
+    pass
+
+
 class Field:
 
     def __set_name__(self, cls, name):
@@ -23,7 +27,7 @@ class Field:
     def __set__(self, instance, value):
         if not self.is_empty(value):
             if not self.is_valid_type(value):
-                raise TypeError(f'Expected {self.get_valid_types()}.')
+                raise ValidationError(f'Expected {self.get_valid_types()}.')
         if hasattr(self, 'is_valid'):
             self.is_valid(value)
         instance.__dict__[self.name] = value
@@ -38,7 +42,7 @@ class EmailField(CharField):
     def is_valid(self, value):
         if value:
             if '@' not in value:
-                raise ValueError('Expected <@> in email.')
+                raise ValidationError('Expected <@> in email.')
 
 
 class ArgumentsField(Field):
@@ -55,7 +59,7 @@ class PhoneField(Field):
             pattern = re.compile(r'^7\d{10}$')
             match = pattern.search(str(value))
             if match is None:
-                raise ValueError('Expected 7YYYZZZZZZZ format.')
+                raise ValidationError('Expected 7YYYZZZZZZZ format.')
 
 
 class DateField(Field):
@@ -64,10 +68,9 @@ class DateField(Field):
 
     def is_valid(self, value):
         try:
-            dt = datetime.strptime(value, '%d.%m.%Y')
-            return dt
+            return datetime.strptime(value, '%d.%m.%Y')
         except ValueError:
-            raise ValueError('Expected DD.MM.YYYY format.')
+            raise ValidationError('Expected DD.MM.YYYY format.')
 
 
 class BirthDayField(DateField):
@@ -79,7 +82,7 @@ class BirthDayField(DateField):
         diff_m = dt_now.month - dt_ext.month
         diff_d = dt_now.day - dt_ext.day
         if diff_y > 70 or (diff_y == 70 and diff_m >=0 and diff_d >= 0):
-            raise ValueError('Age should be < 70.')
+            raise ValidationError('Age should be < 70.')
 
 
 class GenderField(Field):
@@ -88,7 +91,7 @@ class GenderField(Field):
     
     def is_valid(self, value):
         if value and value not in [0, 1, 2]:
-            raise ValueError('Expected 0, 1 or 2.')
+            raise ValidationError('Expected 0, 1 or 2.')
 
 
 class ClientIDsField(Field):
@@ -98,4 +101,4 @@ class ClientIDsField(Field):
     def is_valid(self, value):
         for i in value:
             if not isinstance(i, int):
-                raise ValueError('Expected int IDs.')
+                raise ValidationError('Expected int IDs.')
