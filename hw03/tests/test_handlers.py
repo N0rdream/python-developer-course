@@ -1,6 +1,22 @@
 from api import api
 
 
+def test_multiple_errors(user_token):
+    data = {
+        'account': 42, 
+        'login': 'test', 
+        'token': user_token,
+        'method': '',
+        'arguments': {}
+    }
+    ctx = {}
+    response, code = api.method_handler({'body': data, 'headers': {}}, ctx, None)
+    assert 'Error in <account> field. Expected str.' in response
+    assert 'Field <method> is non-nullable.' in response
+    assert code == api.INVALID_REQUEST
+    assert ctx == {}
+
+
 def test_clients_interests_empty_request(request):
     request.arguments = {}
     ctx = {}
@@ -67,11 +83,11 @@ def test_invalid_token():
     assert ctx == {}
 
 
-def test_invalid_method():
+def test_invalid_method(user_token):
     data = {
         'account': 'test', 
         'login': 'test', 
-        'token': api.get_user_token('test', 'test'),
+        'token': user_token,
         'method': 'foo',
         'arguments': {}
     }

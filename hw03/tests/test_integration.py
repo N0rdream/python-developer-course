@@ -7,13 +7,6 @@ from api.scoring import generate_key
 
 
 @pytest.fixture
-def request():
-    class Request:
-        pass
-    return Request()
-
-
-@pytest.fixture
 def request_score(request):
     request.arguments = {
         'first_name': 'foo', 

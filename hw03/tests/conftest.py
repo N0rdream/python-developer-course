@@ -2,7 +2,17 @@ import docker
 import redis
 import pytest
 import os
-from api.store import Store
+from api import store, api
+
+
+@pytest.fixture(scope='session')
+def user_token():
+    return api.get_user_token('test', 'test')
+
+
+@pytest.fixture(scope='session')
+def admin_token():
+    return api.get_admin_token()
 
 
 @pytest.fixture(scope='session')
@@ -50,9 +60,9 @@ def redis_client(redis_container):
 
 @pytest.fixture
 def store_client_with_db(redis_container):
-    return Store('127.0.0.1', 6379)
+    return store.Store('127.0.0.1', 6379)
     
 
 @pytest.fixture
 def store_client_without_db():
-    return Store('bad_address', 777)
+    return store.Store('bad_address', 777)

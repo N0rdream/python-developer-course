@@ -27,9 +27,10 @@ class Field:
     def __set__(self, instance, value):
         if not self.is_empty(value):
             if not self.is_valid_type(value):
-                raise ValidationError(f'Expected {self.get_valid_types()}.')
-        if hasattr(self, 'is_valid'):
-            self.is_valid(value)
+                raise ValidationError(
+                    f'Expected {self.get_valid_types()}.')
+            if hasattr(self, 'is_valid'):
+                self.is_valid(value)
         instance.__dict__[self.name] = value
 
 
@@ -82,7 +83,7 @@ class BirthDayField(DateField):
         diff_m = dt_now.month - dt_ext.month
         diff_d = dt_now.day - dt_ext.day
         if diff_y > 70 or (diff_y == 70 and diff_m >=0 and diff_d >= 0):
-            raise ValidationError('Age should be < 70.')
+            raise ValidationError('Expected age < 70.')
 
 
 class GenderField(Field):
@@ -101,4 +102,4 @@ class ClientIDsField(Field):
     def is_valid(self, value):
         for i in value:
             if not isinstance(i, int):
-                raise ValidationError('Expected int IDs.')
+                raise ValidationError('Expected int clients IDs.')

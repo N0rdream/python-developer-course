@@ -4,8 +4,6 @@ from api import api
 
 
 URL_VALID = 'http://localhost:8000/method/'
-USER_TOKEN = api.get_user_token('test', 'test')
-ADMIN_TOKEN = api.get_admin_token()
 
 
 def test_server_is_working(api_container, redis_container):
@@ -13,12 +11,12 @@ def test_server_is_working(api_container, redis_container):
     assert r.status_code == 200
 
 
-def test_score_user_with_db(api_container, redis_container):
+def test_score_user_with_db(api_container, redis_container, user_token):
     data = {
         "account": "test", 
         "login": "test", 
         "method": "online_score", 
-        "token": USER_TOKEN, 
+        "token": user_token, 
         "arguments": {
             "phone": '79991234567', 
             "email": '', 
@@ -32,12 +30,12 @@ def test_score_user_with_db(api_container, redis_container):
     assert r == {'response': {'score': 3.0}, 'code': 200}
 
 
-def test_score_admin(api_container, redis_container):
+def test_score_admin(api_container, redis_container, admin_token):
     data = {
         "account": "admin", 
         "login": "admin", 
         "method": "online_score", 
-        "token": ADMIN_TOKEN, 
+        "token": admin_token, 
         "arguments": {
             'first_name': 'foo', 
             'last_name': 'bar', 
@@ -49,11 +47,11 @@ def test_score_admin(api_container, redis_container):
     assert r == {'code': 200, 'response': {'score': 42}}
 
 
-def test_invalid_request(api_container, redis_container):
+def test_invalid_request(api_container, redis_container, admin_token):
     data = {
         "account": "admin", 
         "login": "admin", 
-        "token": ADMIN_TOKEN, 
+        "token": admin_token, 
         "arguments": {}
     }
     r = requests.post(URL_VALID, json=data).json()
@@ -72,11 +70,11 @@ def test_invalid_auth(api_container, redis_container):
     assert r == {'code': 403, 'error': 'Forbidden'}
 
 
-def test_invalid_method(api_container, redis_container):
+def test_invalid_method(api_container, redis_container, user_token):
     data = {
         'account': 'test', 
         'login': 'test', 
-        'token': USER_TOKEN,
+        'token': user_token,
         'method': 'foo',
         'arguments': {}
     }
@@ -84,11 +82,11 @@ def test_invalid_method(api_container, redis_container):
     assert r == {'code': 422, 'error': 'Invalid Request'}
 
 
-def test_clients_interests_are_not_defined(api_container, redis_container):
+def test_clients_interests_are_not_defined(api_container, redis_container, user_token):
     data = {
         'account': 'test',
         'login': 'test', 
-        'token': USER_TOKEN,
+        'token': user_token,
         'method': 'clients_interests',
         'arguments': {
             'client_ids': [1, 2], 
@@ -99,13 +97,13 @@ def test_clients_interests_are_not_defined(api_container, redis_container):
     assert r == {'code': 200, 'response': {'1': [], '2': []}}
 
 
-def test_clients_interests_are_defined(api_container, redis_client, redis_container):
+def test_clients_interests_are_defined(api_container, redis_client, redis_container, user_token):
     redis_client['i:1'] = json.dumps(['foo', 'bar'])
     redis_client['i:2'] = json.dumps(['baz', 'cats'])
     data = {
         'account': 'test', 
         'login': 'test', 
-        'token': USER_TOKEN,
+        'token': user_token,
         'method': 'clients_interests',
         'arguments': {
             'client_ids': [1, 2], 
