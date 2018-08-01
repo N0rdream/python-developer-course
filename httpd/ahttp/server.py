@@ -1,35 +1,63 @@
-import socket
 import asyncio
+import socket
 from .request_handler import AsyncRequestHandler
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import Process
 
 
 class AsyncServer:
 
-    def __init__(self, host, port, root):
-        self.host = host
-        self.port = port
-        self.handler = AsyncRequestHandler(root)
-        self.loop = asyncio.get_event_loop()
+    def __init__(self, root, sock, loop):
+        self.request_handler = AsyncRequestHandler(root)
+        self.loop = loop
+        self.sock = sock
+        self.pool = ThreadPoolExecutor(2)
 
     async def connect(self):
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server_socket.bind((self.host, self.port))
-        server_socket.listen()
-        server_socket.setblocking(False)
-
         while True:
-            client_socket, _ = await self.loop.sock_accept(server_socket)
-            handler = self.client_handler(client_socket)
+            client_socket, _ = await self.loop.sock_accept(self.sock)
+            handler = self.handle(client_socket)
             self.loop.create_task(handler)
 
-    async def client_handler(self, client_socket):
-        request = await self.loop.sock_recv(client_socket, 4096)
-        response = await self.loop.create_task(self.handler.get_response(request))
+    async def sock_recvall(self, sock, size):
+        tmp = bytearray()
+        while True:
+            chunk = await self.loop.sock_recv(sock, size)
+            if not chunk:
+                break
+            tmp.extend(chunk)
+            if b'\r\n\r\n' in tmp:
+                break
+        return tmp
+
+    async def handle(self, client_socket):
+        request = await self.sock_recvall(client_socket, 1024)
+        response = await self.loop.run_in_executor(
+            self.pool,
+            self.request_handler.get_response,
+            request
+        )
         await self.loop.sock_sendall(client_socket, response)
         client_socket.close()
 
-    def run(self):
-        self.loop.create_task(self.connect())
-        self.loop.run_forever()
-        self.loop.close()
+
+def create_socket(addr, port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((addr, port))
+    sock.listen()
+    sock.setblocking(False)
+    return sock
+
+
+def run_server(root, sock):
+    loop = asyncio.get_event_loop()
+    serv = AsyncServer(root, sock, loop)
+    loop.create_task(serv.connect())
+    loop.run_forever()
+
+
+def serve_forever(root, sock, workers):
+    for i in range(workers):
+        p = Process(target=run_server, args=(root, sock))
+        p.start()

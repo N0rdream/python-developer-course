@@ -3,7 +3,6 @@ import sys
 import os
 import re
 import mimetypes
-import aiofiles
 from urllib.parse import unquote
 from datetime import datetime
 
@@ -25,10 +24,9 @@ class AsyncRequestHandler:
         self.document_root = document_root
         self.headers_buffer = []
 
-    async def get_file_content(self, path):
-        async with aiofiles.open(path, mode='rb') as f:
-            contents = await f.read()
-            return contents
+    def get_file_content(self, path):
+        with open(path, mode='rb') as f:
+            return f.read()
 
     def process_uri(self, uri):
         uri = uri.lstrip("/").split('?')[0]
@@ -38,13 +36,11 @@ class AsyncRequestHandler:
         full_uri = os.path.join(self.document_root, uri)
         if full_uri.endswith('/'):
             full_uri = os.path.join(full_uri, 'index.html')
-        return full_uri
+        print(os.path.normpath(full_uri))
+        return os.path.normpath(full_uri)
 
     def is_uri_safe(self, uri):
-        abs_uri = os.path.abspath(uri)
-        if not abs_uri.startswith(os.path.abspath(os.curdir)):
-            return False
-        return True
+        return uri.startswith(self.document_root)
 
     def parse_request(self, request):
         match = re.match(REGEXP_REQUEST, request)
@@ -90,17 +86,17 @@ class AsyncRequestHandler:
         headers = self.get_headers('text/html', len(message_body))
         return (status_line + headers).encode() + message_body
 
-    async def get_response(self, request):
+    def get_response(self, request):
         method, uri = self.parse_request(request.decode())
         if method is None or uri is None:
             return self.get_error_response(400)
+        full_uri = self.get_full_uri(uri)
         if method not in ALLOWED_METHODS:
             return self.get_error_response(405)
-        if not self.is_uri_safe(uri):
+        if not self.is_uri_safe(full_uri):
             return self.get_error_response(403)
-        full_uri = self.get_full_uri(uri)
         try:
-            message_body = await self.get_file_content(full_uri)
+            message_body = self.get_file_content(full_uri)
         except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
             return self.get_error_response(404)
         headers = self.get_headers(self.get_content_type(full_uri), len(message_body))
