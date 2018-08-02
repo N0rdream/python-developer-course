@@ -1,7 +1,6 @@
 import asyncio
 import socket
 from .request_handler import AsyncRequestHandler
-from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Process
 
 
@@ -11,7 +10,6 @@ class AsyncServer:
         self.request_handler = AsyncRequestHandler(root)
         self.loop = loop
         self.sock = sock
-        self.pool = ThreadPoolExecutor(2)
 
     async def connect(self):
         while True:
@@ -32,11 +30,7 @@ class AsyncServer:
 
     async def handle(self, client_socket):
         request = await self.sock_recvall(client_socket, 1024)
-        response = await self.loop.run_in_executor(
-            self.pool,
-            self.request_handler.get_response,
-            request
-        )
+        response = self.request_handler.get_response(request)
         await self.loop.sock_sendall(client_socket, response)
         client_socket.close()
 

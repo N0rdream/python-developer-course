@@ -36,7 +36,6 @@ class AsyncRequestHandler:
         full_uri = os.path.join(self.document_root, uri)
         if full_uri.endswith('/'):
             full_uri = os.path.join(full_uri, 'index.html')
-        print(os.path.normpath(full_uri))
         return os.path.normpath(full_uri)
 
     def is_uri_safe(self, uri):

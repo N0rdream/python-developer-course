@@ -24,7 +24,7 @@
 Задает директорию с контентом.  
 
 ### -w  
-Задает количество worker'ов. Значение по умолчанию 4.  
+Задает количество worker'ов. Значение по умолчанию 2.  
 
 ### Пример запуска:
 ```
@@ -52,65 +52,68 @@ Document Path:          /
 Document Length:        18 bytes
 
 Concurrency Level:      100
-Time taken for tests:   4.516 seconds
+Time taken for tests:   2.581 seconds
 Complete requests:      50000
 Failed requests:        0
 Non-2xx responses:      50000
 Total transferred:      9300000 bytes
 HTML transferred:       900000 bytes
-Requests per second:    11071.64 [#/sec] (mean)
-Time per request:       9.032 [ms] (mean)
-Time per request:       0.090 [ms] (mean, across all concurrent requests)
-Transfer rate:          2011.06 [Kbytes/sec] received
+Requests per second:    19374.66 [#/sec] (mean)
+Time per request:       5.161 [ms] (mean)
+Time per request:       0.052 [ms] (mean, across all concurrent requests)
+Transfer rate:          3519.22 [Kbytes/sec] received
 
 Connection Times (ms)
               min  mean[+/-sd] median   max
-Connect:        0    1   0.8      1       6
-Processing:     0    8   4.1      7      52
-Waiting:        0    7   4.0      7      51
-Total:          0    9   4.1      8      53
+Connect:        0    1   0.4      1       5
+Processing:     0    4   3.1      3      30
+Waiting:        0    4   3.1      3      28
+Total:          1    5   3.1      4      31
 
 Percentage of the requests served within a certain time (ms)
-  50%      8
-  66%     10
-  75%     11
-  80%     12
-  90%     14
-  95%     15
-  98%     18
-  99%     20
- 100%     53 (longest request)
+  50%      4
+  66%      5
+  75%      5
+  80%      6
+  90%      8
+  95%     12
+  98%     16
+  99%     19
+ 100%     31 (longest request)
+
 ```
 ```
 Document Path:          /wikipedia_russia.html
 Document Length:        954824 bytes
 
 Concurrency Level:      100
-Time taken for tests:   29.876 seconds
+Time taken for tests:   25.580 seconds
 Complete requests:      50000
 Failed requests:        0
-Total transferred:      47749450292 bytes
+Total transferred:      47749450000 bytes
 HTML transferred:       47741200000 bytes
-Requests per second:    1673.60 [#/sec] (mean)
-Time per request:       59.751 [ms] (mean)
-Time per request:       0.598 [ms] (mean, across all concurrent requests)
-Transfer rate:          1560814.08 [Kbytes/sec] received
+Requests per second:    1954.66 [#/sec] (mean)
+Time per request:       51.160 [ms] (mean)
+Time per request:       0.512 [ms] (mean, across all concurrent requests)
+Transfer rate:          1822927.53 [Kbytes/sec] received
 
 Connection Times (ms)
               min  mean[+/-sd] median   max
-Connect:        0    1   0.8      1      22
-Processing:     3   59  24.3     58     155
-Waiting:        0   27  20.4     23     134
-Total:          3   60  24.2     59     155
+Connect:        0    1   0.9      0      17
+Processing:     1   51  26.7     45     197
+Waiting:        0   32  24.3     27     193
+Total:          1   51  26.6     45     197
+WARNING: The median and mean for the initial connection time are not within a normal deviation
+        These results are probably not that reliable.
 
 Percentage of the requests served within a certain time (ms)
-  50%     59
-  66%     68
-  75%     74
-  80%     79
-  90%     93
-  95%    104
-  98%    116
-  99%    123
- 100%    155 (longest request)
+  50%     45
+  66%     57
+  75%     66
+  80%     72
+  90%     88
+  95%    102
+  98%    119
+  99%    132
+ 100%    197 (longest request)
  ```
