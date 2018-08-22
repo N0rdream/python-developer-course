@@ -6,6 +6,7 @@ from multiprocessing import Process
 
 
 TIMEOUT_RECV = 10
+MAX_MESSAGE_LEN = 10240
 
 
 class AsyncServer:
@@ -23,12 +24,16 @@ class AsyncServer:
 
     async def sock_recvall(self, sock, size):
         tmp = bytearray()
+        received = 0
         while True:
             try:
                 chunk = await asyncio.wait_for(self.loop.sock_recv(sock, size), TIMEOUT_RECV)
             except concurrent.futures.TimeoutError:
                 break
             if not chunk:
+                break
+            received += len(chunk)
+            if received > MAX_MESSAGE_LEN:
                 break
             tmp.extend(chunk)
             if b'\r\n\r\n' in tmp:
