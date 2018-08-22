@@ -1,7 +1,11 @@
 import asyncio
 import socket
+import concurrent.futures
 from .request_handler import AsyncRequestHandler
 from multiprocessing import Process
+
+
+TIMEOUT_RECV = 10
 
 
 class AsyncServer:
@@ -20,7 +24,10 @@ class AsyncServer:
     async def sock_recvall(self, sock, size):
         tmp = bytearray()
         while True:
-            chunk = await self.loop.sock_recv(sock, size)
+            try:
+                chunk = await asyncio.wait_for(self.loop.sock_recv(sock, size), TIMEOUT_RECV)
+            except concurrent.futures.TimeoutError:
+                break
             if not chunk:
                 break
             tmp.extend(chunk)
