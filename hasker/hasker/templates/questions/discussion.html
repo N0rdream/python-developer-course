@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+
+{% block main %}
+
+<h2>{{ question.title }}</h2>
+
+<div class="question-header">
+  <div>
+  	<h4>{{ question.date_pub }} by <a href="{{ question.account.get_absolute_url }}">{{ question.account.username }}</a></h4>
+  </div>
+  <div>
+  	<h4>RATING: {{question.get_rating}}</h4>
+  </div>
+</div>
+
+<br>
+
+<div class="question-detail">
+	<p>{{ question.content|linebreaks }}</p>
+	{% if user.is_authenticated %}
+		<br>
+		<a href="{% url 'questions:vote_up_question' id_q=question.id %}"><button>Up</button></a>
+		<a href="{% url 'questions:vote_down_question' id_q=question.id %}"><button>Down</button></a>
+	{% endif %}
+</div>
+
+
+{% if user.is_authenticated %}
+<div class="answer-form">
+	<div id="form">
+		<form method="POST" action='' enctype='multipart/form-data'>
+			{% csrf_token %}
+			<h3>Answer question:</h3>
+			{{ form.content }}
+			{{ form.content.errors }}
+			<button type="submit">Answer</button>
+		</form>
+	</div>
+</div>
+{% else %}
+<div class="answer-form">
+	<h3>Sign in for answering.</h3>
+</div>
+{% endif %}
+
+
+
+
+<div>
+	{% if not answers %}
+		<h3>No answers yet.</h3>
+	{% else %}
+		{% for a in answers %}
+		{% if a.is_best %}
+			<div class="answer-detail-best">
+		{% else %}
+			<div class="answer-detail">
+		{% endif %}
+
+			<div class="answer-header">
+				<div>
+					<h4><a href="{{ a.account.get_absolute_url }}">{{ a.account.username }}</a> answered {{a.date_pub|timesince}} ago</h4>
+				</div>
+				<div>
+					<h4>RATING: {{ a.get_rating }}</h4>
+				</div>
+			</div>
+
+				<br>
+				<p>{{ a.content|linebreaks }}</p>
+
+				{% if user.is_authenticated %}
+
+					<br>
+
+					{% if question.account_id == user.id %}
+						{% if a.is_best %}
+							<a href="{% url 'questions:clear_best_answer' id_q=question.id %}"><button>Clear best answer</button></a>
+						{% else %}
+							<a href="{% url 'questions:set_best_answer' id_a=a.id %}"><button>Best answer</button></a>
+						{% endif%}
+					{% endif %}
+
+					<a href="{% url 'questions:vote_up_answer' id_a=a.id %}"><button>Up</button></a>
+					<a href="{% url 'questions:vote_down_answer' id_a=a.id %}"><button>Down</button></a>
+
+				{% endif %}
+			</div>
+		{% endfor %}
+	{% endif %}
+</div>
+
+<div class="pagination">
+    <span class="step-links">
+
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}">previous</a>
+        {% endif %}
+
+        <span class="current">
+            Page {{ page_obj.number }} of {{ paginator.num_pages }}.
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}">next</a>
+        {% endif %}
+    
+    </span>
+</div>
+
+{% endblock main %}

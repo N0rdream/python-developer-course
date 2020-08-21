@@ -1,0 +1,7 @@
+<h2>Hot Top</h2>
+
+{% for q in questions %}
+
+	<p><a href="{{ q.get_absolute_url }}">{{ q.title }}</a></p>
+	
+{% endfor %}

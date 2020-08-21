@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+
+{% block main %}
+
+<div class="user-profile">
+  <h2 class="header">Profile</h2>
+  <p>Username: {{ account.username }}</p>
+  {% if account.id == user.id %}
+  <p>Email: {{ account.email }}</p>
+  {% endif %}
+
+
+{% if account.avatar %}
+<div>
+  <img src="{{ account.avatar.url }}" width="200">
+</div>
+{% else %}
+<div>
+  <p>No avatar</p>
+</div>
+{% endif %}
+
+  <p>Registration date: {{ account.date_joined }}</p>
+</div>
+<br>
+  <br>
+
+
+{% if account.id == user.id %}
+<div id="form">
+  <div>
+    <form method="POST" action='' enctype='multipart/form-data'>
+        {% csrf_token %}
+        <h3>Change email:</h3>
+        {{ form.email }}
+        {{ form.email.errors }}
+        <h3>Change avatar:</h3>
+        {{ form.avatar }}
+        {{ form.avatar.errors }}
+        <button type="submit">Submit</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+
+{% endblock main %}

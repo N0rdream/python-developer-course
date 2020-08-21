@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+<!-- {% block title %}Sign Up{% endblock %}
+ -->
+{% block main %}
+
+<div id="form">
+  <div>
+    <form method="post" enctype="multipart/form-data">
+      <h2 class="header">Sign Up</h2>
+      {% csrf_token %}
+      {{ form.username }}
+      {{ form.username.errors }}
+      {{ form.password1 }}
+      {{ form.password1.errors }}
+      {{ form.password2 }}
+      {{ form.password2.errors }}
+      {{ form.email }}
+      {{ form.email.errors }}
+      <br>
+      {{ form.avatar.label }}
+      {{ form.avatar }}
+      {{ form.avatar.errors }}
+      <button type="submit">Submit</button>
+      {{ form.non_field_errors }}
+    </form>
+  </div>
+</div>
+
+{% endblock main %}

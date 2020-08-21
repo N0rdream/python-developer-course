@@ -1,0 +1,44 @@
+version: '3'
+
+volumes:
+  static: {}
+  media: {}
+
+services:
+
+  #   command: bash -c "python3 manage.py makemigrations && python3 manage.py migrate "
+
+  hasker:
+    build:
+      context: .
+      dockerfile: ./compose/staging/django/Dockerfile
+    image: hasker_production_django
+    depends_on:
+      - db
+    env_file:
+      - .env
+    #   - ./.envs/.staging/.django
+    #   - ./.envs/.staging/.postgres
+    volumes:
+      - static:/static
+      - media:/media
+    command: /start
+
+
+  db:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=${HASKER_DATABASE_USER}
+      - POSTGRES_PASSWORD=${HASKER_DATABASE_PASSWORD}
+      - POSTGRES_DB=${HASKER_DATABASE_NAME}
+
+  ws:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - static:/static
+      - media:/media
+      - ./compose/staging/nginx:/etc/nginx/conf.d
+    depends_on:
+      - hasker

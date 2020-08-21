@@ -1,3 +1,15 @@
 .DS_Store
 __pycache__/
 .pytest_cache
+*.sqlite3
+*.json
+.env
+.pytest_cache/
+commands
+.envs/
+static_cdn/
+*.pdf
+.ipynb_checkpoints/
+*.pyc
+compose/
+results/
